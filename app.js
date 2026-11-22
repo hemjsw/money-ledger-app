@@ -109,7 +109,7 @@ function homeView() {
       '<div class="split"><div><div class="k">รายรับ</div><div class="v pos">' + fmt0(s.inc) + '</div></div><div><div class="k">รายจ่าย</div><div class="v neg">' + fmt0(s.spend) +
       '</div></div><div><div class="k">ออม/ลงทุน</div><div class="v">' + fmt0(s.save) + '</div></div></div>' +
       '<div class="kv muted"><span>เงินเดือน ' + fmt0(s.salary) + '</span><span>รายได้อื่น ' + fmt0(s.other) + '</span></div></section>' +
-    (partial ? '<div class="note">' + partial + '</div>' : '') +
+    lateBanner() + (partial ? '<div class="note">' + partial + '</div>' : '') +
     '<section class="card"><div class="hd"><h2>รายจ่ายแยกหมวด</h2><span class="muted" style="font-size:12px">แตะหมวดเพื่อดูรายการ</span></div>' + (gross > 0 ? '<div class="track" role="img" aria-label="สัดส่วนรายจ่ายตามหมวด">' + track + '</div><div class="legend">' + legend + '</div>' : '<div class="muted">ยังไม่มีรายจ่าย</div>') + '</section>' +
     '<section class="card"><div class="hd"><h2>จ่ายก้อนใหญ่สุด</h2><button class="lnk" data-act="cat" data-cat="">ดูทั้งหมด ›</button></div>' +
       (spendOf(m, null).slice(0, 5).map(rowHTML).join('') || '<div class="muted">ยังไม่มีรายจ่าย</div>') + '</section>' +
@@ -238,8 +238,51 @@ function checkView() {
         '<div class="row"><select id="ans-' + id + '" aria-label="หมวดที่ถูกของรายการนี้">' + opts + '</select><button class="btn red" data-act="answer" data-id="' + id + '">บันทึก</button></div>') + '</div>';
   }).join('') : '<div class="card"><b>ไม่มีอะไรค้าง</b><span class="muted">ทุกรายการมีหมวดแล้ว</span></div>';
   return '<div><div class="eyebrow">TO CHECK</div><h1>ต้องเช็ก</h1></div>' +
-    (rows.length ? '<div class="meta">เลือกหมวดแล้วกดบันทึก ถ้าหมวดเดิมถูกอยู่แล้วก็กดบันทึกเพื่อยืนยัน ร้านเดิมครั้งหน้าระบบจะจัดให้เอง</div>' : '') + list;
+    (D.late || []).map(function (l) { return '<div class="alert hot"><span class="k">statement</span>' + esc(l.text) + '</div>'; }).join('') +
+    uploadCard() +
+    (rows.length ? '<h2 class="sec">หมวดที่ต้องเช็ก</h2><div class="meta">เลือกหมวดแล้วกดบันทึก ถ้าหมวดเดิมถูกอยู่แล้วก็กดบันทึกเพื่อยืนยัน ร้านเดิมครั้งหน้าระบบจะจัดให้เอง</div>' : '') + list;
 }
+
+/* ---------- statements: late reminder + upload from the phone ---------- */
+var UP_BANKS = [['uob', 'UOB (บัตร ONE + Preferred)'], ['ktb', 'KTB กรุงไทย'], ['ktc', 'KTC'], ['kbank', 'KBank / MAKE'], ['scb', 'SCB']];
+function lateBanner() {
+  var l = D.late || [];
+  if (!l.length) return '';
+  return '<button class="alert hot link" data-act="tab" data-tab="check"><span class="k">ถึงเวลาอัปเดต statement</span>' +
+    l.map(function (x) { return esc(x.text); }).join('<br>') + '<span class="lnk" style="padding:0">ไปอัปโหลด ›</span></button>';
+}
+function uploadCard() {
+  var u = UI.upload || {};
+  return '<section class="card"><h2>อัปโหลด statement (PDF)</h2>' +
+    '<div class="meta">สำหรับ statement ที่ไม่ได้มาทางอีเมล เช่น UOB ไฟล์จะฝากไว้ใน Google Drive ของคุณชั่วคราว คอมดึงเข้าระบบตอนรันรอบถัดไป แล้วลบออกจาก Drive ให้</div>' +
+    '<select id="upBank" aria-label="ธนาคาร">' + UP_BANKS.map(function (b) { return '<option value="' + b[0] + '">' + b[1] + '</option>'; }).join('') + '</select>' +
+    '<label class="btn red" style="text-align:center" for="upFile">' + (u.busy ? 'กำลังอัปโหลด…' : 'เลือกไฟล์ PDF แล้วอัปโหลด') + '</label>' +
+    '<input class="file" id="upFile" type="file" accept="application/pdf,.pdf"' + (u.busy ? ' disabled' : '') + '>' +
+    (u.done ? '<div class="ok">✓ อัปโหลด ' + esc(u.done) + ' แล้ว · เข้าระบบตอนคอมรันรอบถัดไป</div>' : '') +
+    (u.err ? '<div class="msg-err">' + esc(u.err) + '</div>' : '') + '</section>';
+}
+function uploadPdf(file, bank) {
+  if (LOCAL) return new Promise(function (r) { setTimeout(r, 400); });  // preview: pretend
+  var meta = {name: 'statement-' + bank + '-' + new Date().toISOString().slice(0, 10) + '.pdf', mimeType: 'application/pdf',
+              appProperties: {ml: 'statement', bank: bank}};
+  var form = new FormData();
+  form.append('metadata', new Blob([JSON.stringify(meta)], {type: 'application/json'}));
+  form.append('file', file);
+  return fetch('https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart&fields=id',
+    {method: 'POST', headers: {'Authorization': 'Bearer ' + token()}, body: form}).then(function (r) {
+    if (r.status === 401) { store.set('ml.token', null); throw new Error('หมดเวลาล็อกอิน กดเข้าสู่ระบบใหม่'); }
+    if (r.status === 403) throw new Error('Google Drive API ยังไม่ได้เปิด หรือไม่มีสิทธิ์ (403)');
+    if (!r.ok) throw new Error('อัปโหลดไม่สำเร็จ (' + r.status + ')');
+  });
+}
+document.addEventListener('change', function (e) {
+  if (e.target.id !== 'upFile' || !e.target.files.length) return;
+  var f = e.target.files[0], bank = document.getElementById('upBank').value;
+  if (!/\.pdf$/i.test(f.name) && f.type !== 'application/pdf') { UI.upload = {err: 'ต้องเป็นไฟล์ PDF'}; render(); return; }
+  UI.upload = {busy: true}; render();
+  uploadPdf(f, bank).then(function () { UI.upload = {done: f.name}; render(); })
+    .catch(function (err) { UI.upload = {err: err.message}; render(); });
+});
 
 function countUp() {
   if (window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
@@ -261,7 +304,8 @@ function render() {
   app.className = anim ? 'enter' : '';
   if (anim) Array.prototype.forEach.call(app.children, function (c, i) { c.style.animationDelay = Math.min(i, 9) * 45 + 'ms'; });
   tabs.innerHTML = TABS.map(function (t) {
-    var badge = t[0] === 'check' && D.check.length ? '<span class="badge">' + D.check.length + '</span>' : '';
+    var n = D.check.length + (D.late || []).length;
+    var badge = t[0] === 'check' && n ? '<span class="badge">' + n + '</span>' : '';
     return '<button data-act="tab" data-tab="' + t[0] + '"' + (UI.tab === t[0] ? ' aria-current="page"' : '') + '><i></i><span>' + t[1] + badge + '</span></button>';
   }).join('');
   if (UI.toast) app.insertAdjacentHTML('beforeend', '<div class="toast" role="status">' + esc(UI.toast) + '</div>');

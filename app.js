@@ -28,7 +28,7 @@ var ICON = {
   'ไม่แน่ใจ': '<circle cx="12" cy="12" r="9"/><path d="M9.5 9.5a2.5 2.5 0 1 1 3.5 2.3c-.7.4-1 .9-1 1.7"/><circle cx="12" cy="17" r=".7" fill="currentColor"/>',
   'รับคืนค่าหาร': '<path d="M4 8h14l-3-3M20 16H6l3 3"/>'
 };
-var TABS = [['home', 'ภาพรวม'], ['recur', 'ประจำ'], ['check', 'ต้องเช็ก']];
+var TABS = [['home', 'ภาพรวม'], ['cal', 'ปฏิทิน'], ['recur', 'ประจำ'], ['check', 'ต้องเช็ก']];
 
 var D = null;            // payload: {generated, per: {YYYY-MM: {category: signed baht}}, fresh: [[label, date]], check: [...]}
 var UI = {tab: 'home', m: null, anim: true, err: '', sub: null, answered: {}, toast: ''};  // sub: {t:'list', cat} | {t:'recur', k}
@@ -243,6 +243,47 @@ function checkView() {
     (rows.length ? '<h2 class="sec">หมวดที่ต้องเช็ก</h2><div class="meta">เลือกหมวดแล้วกดบันทึก ถ้าหมวดเดิมถูกอยู่แล้วก็กดบันทึกเพื่อยืนยัน ร้านเดิมครั้งหน้าระบบจะจัดให้เอง</div>' : '') + list;
 }
 
+/* ---------- calendar: spending per day ---------- */
+var WD = ['อา', 'จ', 'อ', 'พ', 'พฤ', 'ศ', 'ส'];
+function isSpend(t) { return t[4] < 0 && INCOME.indexOf(t[3]) < 0 && t[3] !== SAVE; }
+function short(n) { n = Math.round(n); return n >= 10000 ? Math.round(n / 1000) + 'k' : n >= 1000 ? (n / 1000).toFixed(1).replace('.0', '') + 'k' : String(n); }
+function calView() {
+  var m = UI.m, y = +m.slice(0, 4), mo = +m.slice(5), days = new Date(y, mo, 0).getDate(), first = new Date(y, mo - 1, 1).getDay();
+  var spend = {}, inc = {}, rows = inMonth(m);
+  rows.forEach(function (t) {
+    var d = +t[0].slice(8);
+    if (isSpend(t)) spend[d] = (spend[d] || 0) - t[4];
+    else if (t[4] > 0 && INCOME.indexOf(t[3]) >= 0) inc[d] = (inc[d] || 0) + t[4];
+  });
+  var vals = Object.keys(spend).map(function (k) { return spend[k]; }), mx = Math.max.apply(null, vals.concat([1]));
+  var total = vals.reduce(function (s, v) { return s + v; }, 0), active = vals.length;
+  // keep a selected day inside this month; default to the last day that has anything
+  var withData = rows.map(function (t) { return +t[0].slice(8); });
+  if (!UI.day || UI.day.m !== m) UI.day = {m: m, d: withData.length ? Math.max.apply(null, withData) : 1};
+  var sel = UI.day.d, today = new Date(), isNow = today.getFullYear() === y && today.getMonth() + 1 === mo;
+
+  var cells = WD.map(function (w) { return '<div class="wd">' + w + '</div>'; }).join('');
+  for (var i = 0; i < first; i++) cells += '<div></div>';
+  for (var d = 1; d <= days; d++) {
+    var v = spend[d] || 0, a = v ? 0.12 + 0.68 * Math.sqrt(v / mx) : 0;  // sqrt so small days still show
+    cells += '<button class="day' + (d === sel ? ' sel' : '') + (isNow && d === today.getDate() ? ' now' : '') + '" data-act="day" data-d="' + d + '"' +
+      (v ? ' style="background:rgba(255,51,70,' + a.toFixed(2) + ')"' : '') + ' aria-label="' + d + ' ' + TH_M[mo - 1] + (v ? ' จ่าย ' + Math.round(v) + ' บาท' : '') + '">' +
+      '<span class="dn">' + d + (inc[d] ? '<i class="dot"></i>' : '') + '</span><span class="dv">' + (v ? short(v) : '') + '</span></button>';
+  }
+
+  var dayRows = rows.filter(function (t) { return +t[0].slice(8) === sel; }).sort(function (a, b) { return a[4] - b[4]; });
+  var dayOut = dayRows.filter(isSpend).reduce(function (s, t) { return s - t[4]; }, 0);
+  var iso = m + '-' + String(sel).padStart(2, '0');
+  return header('CALENDAR', 'ปฏิทิน') +
+    '<div class="card"><div class="kv"><span class="muted">เงินจ่ายออกทั้งเดือน · ' + active + ' วัน</span><span class="mono" style="font-weight:700;font-size:18px">' + fmt0(total) +
+    '</span></div><div class="kv muted"><span>เฉลี่ยวันที่จ่าย</span><span class="mono">' + fmt0(active ? total / active : 0) + '/วัน</span></div>' +
+    '<div class="meta">ยอดก่อนหักเงินที่ได้คืน (ค่าหาร, ครอบครัวโอนคืน) · รายจ่ายสุทธิดูที่หน้าภาพรวม</div></div>' +
+    '<div class="cal">' + cells + '</div>' +
+    '<div class="keys"><span><b style="background:rgba(255,51,70,.25)"></b>จ่ายน้อย</span><span><b style="background:rgba(255,51,70,.8)"></b>จ่ายมาก</span><span><b style="background:var(--cyan);border-radius:50%"></b>มีเงินเข้า</span></div>' +
+    '<div class="hd" style="margin-top:4px"><h2>' + thShort(iso) + ' ' + (y + 543) + '</h2><span class="mono" style="font-weight:700">' + (dayOut ? fmt(dayOut) : '') + '</span></div>' +
+    (dayRows.length ? dayRows.map(rowHTML).join('') : '<div class="card muted">วันนี้ไม่มีรายการ</div>');
+}
+
 /* ---------- statements: late reminder + upload from the phone ---------- */
 var UP_BANKS = [['uob', 'UOB (บัตร ONE + Preferred)'], ['ktb', 'KTB กรุงไทย'], ['ktc', 'KTC'], ['kbank', 'KBank / MAKE'], ['scb', 'SCB']];
 function lateBanner() {
@@ -300,7 +341,7 @@ function render() {
   if (!D) { app.innerHTML = '<div><div class="eyebrow">MONEY LEDGER</div><h1>ภาพรวม</h1></div><div class="card">' + (UI.err || 'กำลังโหลด…') + '</div>'; tabs.innerHTML = ''; return; }
   var anim = UI.anim; UI.anim = false;
   app.innerHTML = UI.sub ? (UI.sub.t === 'list' ? listView(UI.sub.cat) : recurDetail(UI.sub.k)) :
-    UI.tab === 'check' ? checkView() : UI.tab === 'recur' ? recurView() : homeView();
+    UI.tab === 'check' ? checkView() : UI.tab === 'recur' ? recurView() : UI.tab === 'cal' ? calView() : homeView();
   app.className = anim ? 'enter' : '';
   if (anim) Array.prototype.forEach.call(app.children, function (c, i) { c.style.animationDelay = Math.min(i, 9) * 45 + 'ms'; });
   tabs.innerHTML = TABS.map(function (t) {
@@ -325,6 +366,7 @@ document.addEventListener('click', function (e) {
     history.pushState({sub: true}, '');  // so the phone's back gesture closes this page
   }
   else if (a === 'back') { history.back(); return; }  // popstate below does the closing
+  else if (a === 'day') { UI.day = {m: UI.m, d: +b.dataset.d}; render(); return; }  // no re-animation, keep scroll
   UI.anim = true;
   render();
   window.scrollTo(0, top ? 0 : a === 'back' ? UI.y || 0 : window.scrollY);

@@ -107,6 +107,15 @@ label.btn { cursor: pointer; display: block; }
 .card p { margin: 0; color: var(--muted); }
 .toast { position: fixed; left: 16px; right: 16px; bottom: 84px; max-width: 408px; margin: 0 auto; background: var(--r4); border: 1px solid var(--r1); color: #FFC2C8; border-radius: 8px; padding: 10px 14px; z-index: 6; }
 
+.cal { display: grid; grid-template-columns: repeat(7, 1fr); gap: 4px; }
+.cal .wd { text-align: center; font-size: 12px; color: var(--muted); padding-bottom: 2px; }
+.cal .day { aspect-ratio: 1 / 1.1; border: 1px solid var(--line); background: var(--panel); border-radius: 6px; padding: 3px 2px; display: flex; flex-direction: column; justify-content: space-between; align-items: center; min-width: 0; }
+.cal .day .dn { font-size: 12px; color: var(--muted); display: flex; align-items: center; gap: 2px; }
+.cal .day .dv { font-family: var(--mono); font-size: 11px; font-weight: 700; color: #fff; line-height: 1.1; }
+.cal .day.now .dn { color: var(--ink); font-weight: 700; text-decoration: underline; }
+.cal .day.sel { outline: 2px solid var(--cyan); outline-offset: 1px; }
+.cal .dot { width: 5px; height: 5px; border-radius: 50%; background: var(--cyan); display: inline-block; }
+
 nav.tabs { position: fixed; left: 0; right: 0; bottom: 0; background: var(--panel); border-top: 1px solid var(--line); padding-bottom: env(safe-area-inset-bottom, 0px); z-index: 5; }
 nav.tabs div { max-width: 440px; margin: 0 auto; display: flex; }
 nav.tabs button { background: none; border: 0; flex: 1; display: flex; flex-direction: column; align-items: center; gap: 8px; padding: 0 0 12px; color: var(--muted); font-size: 12px; }

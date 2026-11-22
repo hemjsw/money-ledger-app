@@ -275,12 +275,22 @@ document.addEventListener('click', function (e) {
   if (a === 'tab') { UI.tab = b.dataset.tab; UI.sub = null; top = true; }
   else if (a === 'mprev' && i > 0) UI.m = ml[i - 1];
   else if (a === 'mnext' && i < ml.length - 1) UI.m = ml[i + 1];
-  else if (a === 'cat') { UI.y = window.scrollY; UI.sub = {t: 'list', cat: b.dataset.cat || null}; top = true; }
-  else if (a === 'recur') { UI.y = window.scrollY; UI.sub = {t: 'recur', k: b.dataset.key}; top = true; }
-  else if (a === 'back') { UI.sub = null; }
+  else if (a === 'cat' || a === 'recur') {
+    UI.y = window.scrollY; top = true;
+    UI.sub = a === 'cat' ? {t: 'list', cat: b.dataset.cat || null} : {t: 'recur', k: b.dataset.key};
+    history.pushState({sub: true}, '');  // so the phone's back gesture closes this page
+  }
+  else if (a === 'back') { history.back(); return; }  // popstate below does the closing
   UI.anim = true;
   render();
   window.scrollTo(0, top ? 0 : a === 'back' ? UI.y || 0 : window.scrollY);
+});
+
+// phone back gesture / browser back: leave a category or recurring page, like the ‹ button
+window.addEventListener('popstate', function () {
+  if (!UI.sub) return;
+  UI.sub = null; UI.anim = true; render();
+  window.scrollTo(0, UI.y || 0);
 });
 
 function load(payload) {

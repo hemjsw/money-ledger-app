@@ -306,6 +306,7 @@ var tokenClient = null;
   var m = location.hash.match(/sheet=([\w-]{20,})/);
   if (m) { store.set('ml.sheet', m[1]); history.replaceState(null, '', location.pathname); }
 })();
+window.addEventListener('hashchange', function () { if (/sheet=/.test(location.hash)) location.reload(); });
 function sheetId() { return store.get('ml.sheet'); }
 function token() { var t = store.get('ml.token'), exp = +store.get('ml.exp') || 0; return t && Date.now() < exp - 60000 ? t : null; }
 

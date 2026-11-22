@@ -357,6 +357,13 @@ function saveAnswer(id, cat) {
 document.addEventListener('click', function (e) {
   var b = e.target.closest('[data-act]'); if (!b) return;
   if (b.dataset.act === 'signin') { e.stopImmediatePropagation(); signIn(); }
+  else if (b.dataset.act === 'setsheet') {
+    e.stopImmediatePropagation();
+    var v = (document.getElementById('sheetLink') || {}).value || '', id = (v.match(/\/d\/([\w-]{20,})/) || v.match(/^([\w-]{20,})$/) || [])[1];
+    if (!id) { alertMsg('ลิงก์ไม่ถูกต้อง ต้องเป็นลิงก์ของ Google Sheets'); return; }
+    store.set('ml.sheet', id);
+    if (token()) fetchData(); else showGate('');
+  }
   else if (b.dataset.act === 'answer') {
     e.stopImmediatePropagation();
     var id = b.dataset.id, sel = document.getElementById('ans-' + id);
@@ -374,7 +381,9 @@ if (LOCAL) {
   fetch('data.local.json').then(function (r) { if (!r.ok) throw new Error(r.status); return r.json(); }).then(load)
     .catch(function () { UI.err = 'ไม่พบ data.local.json'; render(); });
 } else if (!sheetId()) {
-  UI.err = 'ยังไม่ได้ตั้งค่า: เปิดลิงก์ตั้งค่าที่ได้จากคอมหนึ่งครั้ง';
+  UI.err = '<p>ตั้งค่าครั้งแรก: เปิดชีต "รายรับรายจ่าย Swim" ในแอป Google Sheets → แชร์ → คัดลอกลิงก์ แล้ววางที่นี่</p>' +
+    '<input class="pw" id="sheetLink" type="url" inputmode="url" autocomplete="off" placeholder="https://docs.google.com/spreadsheets/d/…" aria-label="ลิงก์ชีต">' +
+    '<button class="btn red" data-act="setsheet">บันทึก</button>';
   render();
 } else if (token()) fetchData();
 else showGate('');

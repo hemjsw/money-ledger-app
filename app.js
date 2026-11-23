@@ -350,6 +350,7 @@ function render() {
     return '<button data-act="tab" data-tab="' + t[0] + '"' + (UI.tab === t[0] ? ' aria-current="page"' : '') + '><i></i><span>' + t[1] + badge + '</span></button>';
   }).join('');
   if (UI.toast) app.insertAdjacentHTML('beforeend', '<div class="toast" role="status">' + esc(UI.toast) + '</div>');
+  store.set('ml.view', JSON.stringify({tab: UI.tab, m: UI.m}));  // this phone only; just which page you were on
   if (anim) countUp();
 }
 
@@ -383,6 +384,11 @@ function load(payload) {
   D = payload; UI.err = '';
   var ml = months(), today = new Date().toISOString().slice(0, 7);
   // open on the latest finished month; the running month is one tap away
+  // reopen where you left off (tab + month); first time: the latest finished month
+  var saved = {}; try { saved = JSON.parse(store.get('ml.view') || '{}'); } catch (e) {}
+  if (!UI.m && ml.indexOf(saved.m) >= 0) UI.m = saved.m;
+  if (!UI.restored && TABS.some(function (t) { return t[0] === saved.tab; })) UI.tab = saved.tab;
+  UI.restored = true;
   if (!UI.m || ml.indexOf(UI.m) < 0) UI.m = ml.filter(function (m) { return m < today; }).pop() || ml[ml.length - 1];
   UI.anim = true; render();
 }
